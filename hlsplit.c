@@ -102,7 +102,7 @@ main(int argc, char *argv[])
       /* Now go through and find the newlines */
       n = p = inbuf;
       r2 = (uint64_t *)resout;
-      c = 32*1024/8 + 1;
+      c = 32*1024/8/8 + 1;
       if (mode == 2) {
          while (--c)
             count += __builtin_popcountl(*r2++);
@@ -110,20 +110,20 @@ main(int argc, char *argv[])
       else {
          while (--c) {
             while (*r2 != 0) {
-	       ind = __builtin_ctzl(*r2);
-	       if (mode || ++state == mod) {
-	          state = 0;
-	          add(n, p + ind + 1 -n);
-	       }
-	       n = p + ind + 1;
-	       *r2 &=~ 1ul<<ind;
-	    }
-	    p += 64;
-	    r2++;
+              ind = __builtin_ctzl(*r2);
+              if (mode || ++state == mod) {
+                 state = 0;
+                 add(n, p + ind + 1 -n);
+              }
+              n = p + ind + 1;
+              *r2 &=~ 1ul<<ind;
+           }
+           p += 64;
+           r2++;
          }
+         if ((mode || (state + 1 == mod)) && n < inbuf + cnt)
+            add (n, inbuf + cnt - n);
       }
-      if ((mode || (state + 1 == mod)) && n < inbuf + cnt)
-	 add (n, inbuf + cnt - n);
    }
 
    if (mode == 2)
