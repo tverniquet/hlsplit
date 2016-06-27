@@ -56,6 +56,11 @@ add(char *p, size_t cnt)
 }
 
 
+#define MODE_PRINT       0x01
+#define MODE_COUNT       0x02
+#define MODE_EVERY       0x04
+#define MODE_COUNT_FAST  0x08
+
 /*
  * Usage:
  *
@@ -74,10 +79,9 @@ main(int argc, char *argv[])
    char *p, *n, *r;
    uint64_t *r2;
    int ind;
-
-   int mod   = argc>2 ? atoi(argv[2]) : 3;
-   int state = mod - (argc>1 ? atoi(argv[1]) : 1);
-   int mode = state == mod ? 1 : state > mod ? 2 : 0;
+   int mode  = argc > 1 ? atoi(argv[1]) : MODE_COUNT_FAST;
+   int mod   = argc > 3 ? atoi(argv[3]) : 3;
+   int state = mod - (argc > 2 ? atoi(argv[2]) : 1);
 
    __m128i lf = _mm_set1_epi8('\n');
    __m128i *res = (__m128i *)resbuf;
@@ -92,18 +96,18 @@ main(int argc, char *argv[])
       if (cnt < 32*1024)
          memset(inbuf + cnt, 0, 32*1024 - cnt);
 
-      while ((char *)a < inbuf + 32*1024) {
-         *res = _mm_cmpistrm(*a, lf, _SIDD_CMP_EQUAL_EACH);
+      c = 32*1024/16+1;
+      while(--c) {
+         *res = _mm_cmpistrm(*a++, lf, _SIDD_CMP_EQUAL_EACH);
          memcpy(r, res, 2);
          r+=2;
-         a++;
       }
 
       /* Now go through and find the newlines */
       n = p = inbuf;
       r2 = (uint64_t *)resout;
       c = 32*1024/8/8 + 1;
-      if (mode == 2) {
+      if (mode & MODE_COUNT_FAST) {
          while (--c)
             count += __builtin_popcountl(*r2++);
       }
@@ -111,9 +115,12 @@ main(int argc, char *argv[])
          while (--c) {
             while (*r2 != 0) {
               ind = __builtin_ctzl(*r2);
-              if (mode || ++state == mod) {
+              if ((mode & MODE_EVERY)  || ++state == mod) {
                  state = 0;
-                 add(n, p + ind + 1 -n);
+                 if (mode & MODE_COUNT)
+                    count++;
+                 if (mode & MODE_PRINT)
+                    add(n, p + ind + 1 -n);
               }
               n = p + ind + 1;
               *r2 &=~ 1ul<<ind;
@@ -121,14 +128,14 @@ main(int argc, char *argv[])
            p += 64;
            r2++;
          }
-         if ((mode || (state + 1 == mod)) && n < inbuf + cnt)
+         if (((mode & MODE_EVERY)|| (state + 1 == mod)) && n < inbuf + cnt && mode & MODE_PRINT)
             add (n, inbuf + cnt - n);
       }
    }
 
-   if (mode == 2)
+   if (mode & (MODE_COUNT_FAST | MODE_COUNT))
       printf("%ld\n", count);
-   else
+   else if (mode & MODE_PRINT)
       flush();
 
    exit (EXIT_SUCCESS);
